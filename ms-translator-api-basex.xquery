@@ -66,3 +66,89 @@ declare function ms-translator-api:retrieveAccessToken(
   )
   return $accessToken
 };
+(: ## Microsoft Translator Text API v2.0.0 :)
+(:~
+ : Retrieve a base64Binary audio data stream in a desired language from text
+ : passed to the Microsoft Cognitive Services Translator Text API.
+ :)
+declare function ms-translator-api:textToSpeech(
+  $accessToken as xs:string,
+  $text as xs:string,
+  $language as xs:string,
+  $format as xs:string?,
+  $options as xs:string?
+) as xs:base64Binary {
+  let $mimeType := (
+    if (
+      $format = "audio/mp3"
+    )
+    then (
+      "audio/mpeg"
+    )
+    else (
+      "audio/x-wav"
+    )
+  )
+  let $requiredParameters := map {
+    "text=": $text,
+    "language=": $language
+  }
+  let $optionalParameters := (
+    if (
+      fn:empty($format)
+      or ($format = "")
+    )
+    then ()
+    else (
+      map {
+        "format=": $format
+      }
+    ),
+    if (
+      fn:empty($options)
+      or ($options = "")
+    )
+    then ()
+    else (
+      map {
+        "options=": $options
+      }
+    )
+  )
+  let $buildQueryString := (
+    function(
+      $key,
+      $value
+    ) {
+      fn:concat(
+        $key,
+        $value
+        => fn:encode-for-uri()
+        => fn:normalize-unicode()
+      )
+    }
+  )
+  let $queryString := (
+    map:merge((
+      $requiredParameters,
+      $optionalParameters
+    ))
+    => map:for-each($buildQueryString)
+    => fn:string-join("&amp;")
+  )
+  let $speakRequest := (
+    <http:request method="get">
+      <http:header name="Accept" value="{$mimeType}" />
+      <http:header name="Authorization" value="{$accessToken}" />
+    </http:request>
+  )
+  let $speakResponse := http:send-request(
+    $speakRequest,
+    fn:concat(
+      "https://api.microsofttranslator.com/v2/http.svc/Speak?",
+      $queryString
+    )
+  )
+  let $audioData := $speakResponse[2]
+  return $audioData
+};
